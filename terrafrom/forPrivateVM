@@ -1,0 +1,93 @@
+ #provider.tf (file)
+terraform {
+  required_providers {
+    azurerm = {
+      source = "hashicorp/azurerm"
+      version = "4.26.0"
+    }
+  }
+}
+
+provider "azurerm" {
+   features {}
+
+  subscription_id = "782e8a69-7d8c-4253-a361-58d954da4db4"
+  client_id       = "241bdefc-ce54-4e19-af45-470c12f52d35"
+  client_secret   = "QSi8Q~YhZ4RYBFXUcfXAV7EFt8PuaPZJ4yqO8afW"
+  tenant_id       = "952253d7-44e2-490e-b9eb-ec295966f91a"
+}
+
+#for main.tf (file)
+# Resource Group
+resource "azurerm_resource_group" "AmruthrRg" {
+  name     = "AmruthrRgEx"
+  location = "West US 2"  # Corrected location name format to match Azure's region naming
+}
+
+# Virtual Network
+resource "azurerm_virtual_network" "vnet" {
+  name                = "AmruthVnet"
+  location            = azurerm_resource_group.AmruthrRg.location
+  resource_group_name = azurerm_resource_group.AmruthrRg.name
+  address_space       = ["10.0.0.0/16"]
+}
+
+# Subnet
+resource "azurerm_subnet" "subnet" {
+  name                 = "AmruthSubnet"
+  resource_group_name  = azurerm_resource_group.AmruthrRg.name
+  virtual_network_name = azurerm_virtual_network.vnet.name
+  address_prefixes     = ["10.0.1.0/24"]
+}
+
+# Network Interface
+resource "azurerm_network_interface" "nic" {
+  name                = "AmruthNIC"
+  location            = azurerm_resource_group.AmruthrRg.location
+  resource_group_name = azurerm_resource_group.AmruthrRg.name
+
+  ip_configuration {
+    name                          = "AmruthNICConfig"
+    subnet_id                     = azurerm_subnet.subnet.id
+    private_ip_address_allocation = "Dynamic"
+  }
+}
+
+# Generate SSH Key Pair
+resource "tls_private_key" "ssh_key" {
+  algorithm = "RSA"
+  rsa_bits  = 4096
+}
+
+# Store SSH Public Key in project directory to avoid permission errors
+resource "local_file" "ssh_key" {
+  content  = tls_private_key.ssh_key.public_key_openssh
+  filename = "${path.module}/id_rsa.pub"
+}
+
+# Virtual Machine
+resource "azurerm_linux_virtual_machine" "vm" {
+  name                  = "Amruthdemo"
+  resource_group_name   = azurerm_resource_group.AmruthrRg.name
+  location              = azurerm_resource_group.AmruthrRg.location
+  size                  = "Standard_B1ls"  # Uses fewer cores
+  admin_username        = "azureuser"
+  network_interface_ids = [azurerm_network_interface.nic.id]
+
+  admin_ssh_key {
+    username   = "azureuser"
+    public_key = tls_private_key.ssh_key.public_key_openssh
+  }
+
+  os_disk {
+    caching              = "ReadWrite"
+    storage_account_type = "Standard_LRS"
+  }
+
+  source_image_reference {
+    publisher = "Canonical"
+    offer     = "0001-com-ubuntu-server-jammy"
+    sku       = "22_04-lts-gen2"
+    version   = "latest"
+  }
+}
