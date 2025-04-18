@@ -1,0 +1,39 @@
+---
+- name: Install Jenkins and Start using Handlers
+  hosts: all
+  become: true
+
+  tasks:
+    - name: Install Java (Jenkins dependency)
+      apt:
+        name: openjdk-17-jdk
+        state: present
+        update_cache: yes
+
+    - name: Download Jenkins repository key
+      get_url:
+        url: https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key
+        dest: /usr/share/keyrings/jenkins-keyring.asc
+
+    - name: Add Jenkins repository
+      apt_repository:
+        repo: "deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] https://pkg.jenkins.io/debian-stable binary/"
+        state: present
+        filename: jenkins
+
+    - name: Update apt cache after adding Jenkins repo
+      apt:
+        update_cache: yes
+
+    - name: Install Jenkins
+      apt:
+        name: jenkins
+        state: present
+      notify: Start Jenkins   # Notify handler only when Jenkins is installed
+
+  handlers:
+    - name: Start Jenkins
+      service:
+        name: jenkins
+        state: started
+        enabled: yes
