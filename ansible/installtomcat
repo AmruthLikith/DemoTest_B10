@@ -1,0 +1,45 @@
+---
+- name: Setup Tomcat and Deploy WAR file
+  hosts: all
+  become: true
+
+  tasks:
+    - name: Update apt package list
+      apt:
+        update_cache: yes
+
+    - name: Install JDK 17
+      apt:
+        name: openjdk-17-jdk
+        state: present
+
+    - name: Verify Java version
+      command: java -version
+      register: java_version
+      ignore_errors: true
+
+    - name: Show Java version
+      debug:
+        var: java_version.stdout_lines
+
+    - name: Download Tomcat 9.0.102
+      get_url:
+        url: https://dlcdn.apache.org/tomcat/tomcat-9/v9.0.102/bin/apache-tomcat-9.0.102.tar.gz
+        dest: /tmp/apache-tomcat.tar.gz
+
+    - name: Unarchive Tomcat
+      unarchive:
+        src: /tmp/apache-tomcat.tar.gz
+        dest: /opt/
+        remote_src: yes
+
+    - name: Copy latest Amazon.war to Tomcat webapps
+      copy:
+        src: /home/azureuser/Amazon.war
+        dest: /opt/apache-tomcat-9.0.102/webapps/Amazon.war
+        remote_src: no
+
+    - name: Start Tomcat
+      shell: ./startup.sh
+      args:
+        chdir: /opt/apache-tomcat-9.0.102/bin/
